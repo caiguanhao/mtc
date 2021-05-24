@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<title>MTC</title>
+<link rel="icon" href="data:;base64,iVBORw0KGgo=">
+<style>
+input, select {
+  font-size: 26px;
+}
+
+button {
+  font-size: 26px;
+  margin-bottom: 10px;
+}
+</style>
+</head>
+
+<body>
+
+<button data-jsonrpc="MTC.Init">Init</button>
+<button data-jsonrpc="MTC.Deinit">Deinit</button>
+<button id="EnumDevice">EnumDevice</button>
+<button id="EnumDevice">EnumDevice</button>
+<br>
+<select id="CameraList"></select>
+<button id="ConnectCamera">ConnectCamera</button>
+<br>
+<select id="SerialList"></select>
+<button id="ConnectSerial">ConnectSerial</button>
+<button data-jsonrpc="MTC.GetDevModel">GetDevModel</button>
+<button data-jsonrpc="MTC.GetDevSn">GetDevSn</button>
+<button data-jsonrpc="MTC.GetReoConfig">GetReoConfig</button>
+<button data-jsonrpc="MTC.GetSysVer">GetSysVer</button>
+<br>
+<select id="interval">
+<option value="50">1/20 sec</option>
+<option value="100" selected>1/10 sec</option>
+<option value="500">1/2 sec</option>
+<option value="1000">1 sec</option>
+</select>
+<button id="GetFrame">GetFrame</button>
+<button data-jsonrpc="MTC.GetFrameHeight">GetFrameHeight</button>
+<button data-jsonrpc="MTC.GetFrameWidth">GetFrameWidth</button>
+<br>
+<img id="CurrentFrame" width="72" height="128">
+<br>
+<pre id="response"></pre>
+
+<script>
+Array.from(document.querySelectorAll('[data-jsonrpc]')).forEach((element) => {
+  element.addEventListener('click', () => {
+    jsonrpc(element.dataset.jsonrpc)
+  })
+})
+
+EnumDevice()
+
+document.querySelector('#EnumDevice').addEventListener('click', () => {
+  EnumDevice()
+})
+
+document.querySelector('#ConnectCamera').addEventListener('click', () => {
+  jsonrpc('MTC.ConnectCamera', [ document.querySelector('#CameraList').value ])
+})
+
+document.querySelector('#ConnectSerial').addEventListener('click', () => {
+  jsonrpc('MTC.ConnectSerial', [ document.querySelector('#SerialList').value ])
+})
+
+document.querySelector('#GetFrame').addEventListener('click', () => {
+  if (window.getFrameInt !== undefined) {
+    window.clearInterval(window.getFrameInt)
+    window.getFrameInt = undefined
+    return
+  }
+  let interval = +document.querySelector('#interval').value || 1000
+  window.clearInterval(window.getFrameInt)
+  window.getFrameInt = window.setInterval(() => {
+    GetFrame()
+  }, interval)
+  GetFrame()
+})
+
+function EnumDevice () {
+  jsonrpc('MTC.EnumDevice').then(res => {
+    let html = ''
+    res.result.Videos.forEach(name => {
+      html += `<option value="${name}">${name}</option>`
+    })
+    document.querySelector('#CameraList').innerHTML = html
+
+    html = ''
+    res.result.Serials.forEach(name => {
+      html += `<option value="${name}">${name}</option>`
+    })
+    document.querySelector('#SerialList').innerHTML = html
+  })
+}
+
+function GetFrame () {
+  jsonrpc('MTC.GetFrame').then(res => {
+    if (res.result) {
+      document.querySelector('#CurrentFrame').src = 'data:image/jpeg;base64,' + res.result.Image
+    }
+  })
+}
+
+function jsonrpc (method, params) {
+  params = params || []
+  if (method !== 'MTC.GetFrame') {
+    Array.from(document.querySelectorAll('input, select, button')).forEach(e => e.disabled = true)
+  }
+  return fetch('/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      id: randomInt(10000, 99999),
+      method,
+      params
+    })
+  }).then(res => res.json()).then(res => {
+    let text = JSON.stringify(res, null, 2)
+    if (method === 'MTC.GetFrame') {
+      text = text.replace(/("Image"\s*:\s*)".*"/, '$1"..."')
+    }
+    document.querySelector('#response').innerText = 'RESPONSE:\n' + text
+    return res
+  }).finally(() => {
+    if (method !== 'MTC.GetFrame') {
+      Array.from(document.querySelectorAll('input, select, button')).forEach(e => e.disabled = false)
+    }
+  })
+}
+
+function randomInt (min, max) {
+  return Math.floor(Math.random() * (max - min + 1) + min);
+}
+</script>
+</body>
+
+</html>
